@@ -17,6 +17,9 @@ class MainLevelsCustomizerManager {
 		FileNotFound,
 		ParsingError,
 		LevelsCountError,
+		LevelNameLengthError,
+		LevelStarsCountError,
+		LevelDifficultyError,
 	};
 
 	std::vector<MainLevelData*> levelsData;

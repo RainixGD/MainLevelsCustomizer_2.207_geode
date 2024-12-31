@@ -18,7 +18,11 @@ void MainLevelsCustomizerManager::init() {
 			FastPatch::make("0x303F4A", "90 90 90 90 90 90 90 90 90 90 90 90");//hide The Tower
 	}
 }
-
+/*
+LevelNameLengthError,
+		LevelStarsError,
+		LevelDifficultyError,
+*/
 MainLevelsCustomizerManager::DataLoadingResult MainLevelsCustomizerManager::loadData() {
 	std::ifstream file("Resources/levelCustomizer.json");
 	if (!file) return FileNotFound;
@@ -49,10 +53,9 @@ MainLevelsCustomizerManager::DataLoadingResult MainLevelsCustomizerManager::load
 			newLevel->stars = level["stars"].get<int>();
 			newLevel->song = level["song"];
 
-			if (newLevel->name == "") newLevel->name = "ERROR :/";
-			if (newLevel->difficulty < 1) newLevel->difficulty = 1;
-			if (newLevel->difficulty > 6) newLevel->difficulty = 6;
-			if (newLevel->stars < 1) newLevel->stars = 1;
+			if (newLevel->name.size() > 100 || newLevel->name.size() == 0) return LevelNameLengthError;
+			if (newLevel->difficulty < 1 || newLevel->difficulty > 6) return LevelDifficultyError;
+			if (newLevel->stars <= 0 || newLevel->stars > 9999) return LevelStarsCountError;
 
 			levelsData.push_back(newLevel);
 		}
@@ -70,14 +73,23 @@ void MainLevelsCustomizerManager::onMenuLayer(MenuLayer* layer) {
 
 		std::string errorText;
 		switch (loadingStatus) {
-		case MainLevelsCustomizerManager::FileNotFound:
+		case FileNotFound:
 			errorText = "Can't find 'levelCustomizer.json' in ./Resources";
 			break;
-		case MainLevelsCustomizerManager::ParsingError:
+		case ParsingError:
 			errorText = "Can't parse 'levelCustomizer.json'";
 			break;
-		case MainLevelsCustomizerManager::LevelsCountError:
-			errorText = "Too many or too few levels in 'levelCustomizer.json";
+		case LevelsCountError:
+			errorText = "Too many or too few levels in 'levelCustomizer.json'";
+			break;
+		case LevelNameLengthError:
+			errorText = "Levelname is too long or empty 'levelCustomizer.json'";
+			break;
+		case LevelDifficultyError:
+			errorText = "Difficulty should be between 1 and 6 in 'levelCustomizer.json'";
+			break;
+		case LevelStarsCountError:
+			errorText = "Too many stars for level in 'levelCustomizer.json'";
 			break;
 		}
 
@@ -85,7 +97,7 @@ void MainLevelsCustomizerManager::onMenuLayer(MenuLayer* layer) {
 
 		auto errorLabel = CCLabelBMFont::create(errorText.c_str(), "bigFont.fnt");
 		errorLabel->setColor({ 255, 0, 0 });
-		errorLabel->setScale(0.6);
+		errorLabel->setScale(0.4);
 		errorLabel->setPosition({ size.width / 2, size.height - 10 });
 		layer->addChild(errorLabel);
 	}
