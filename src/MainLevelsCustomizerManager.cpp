@@ -1,9 +1,10 @@
 #include "./MainLevelsCustomizerManager.h"
 #include "./FastPatch.h"
+#include "./ErrorsManager/ErrorsManager.h"
 
 void MainLevelsCustomizerManager::init() {
-	loadingStatus = loadData();
-	if (loadingStatus == OK) {
+	isOk = loadData();
+	if (isOk) {
 		FastPatch::make("0x38F894", "EB");//load unfailed
 		auto byteVector = std::vector<uint8_t>();
 		byteVector.push_back(levelsData.size() + 1);
@@ -18,93 +19,110 @@ void MainLevelsCustomizerManager::init() {
 			FastPatch::make("0x303F4A", "90 90 90 90 90 90 90 90 90 90 90 90");//hide The Tower
 	}
 }
-/*
-LevelNameLengthError,
-		LevelStarsError,
-		LevelDifficultyError,
-*/
-MainLevelsCustomizerManager::DataLoadingResult MainLevelsCustomizerManager::loadData() {
-	std::ifstream file("Resources/levelCustomizer.json");
-	if (!file) return FileNotFound;
-	std::ostringstream buffer;
-	buffer << file.rdbuf();
-	std::string fileContent = buffer.str();
 
-	file.close();
-	try {
-		auto root = nlohmann::json::parse(fileContent);
+bool MainLevelsCustomizerManager::loadData() {
+    std::ifstream file("Resources/levelCustomizer.json");
+    if (!file) {
+        ErrorsManager::addError("Main Levels Customizer: File 'Resources/levelCustomizer.json' not found or unable to open.", ErrorsManager::Error);
+        return false;
+    }
 
-		if (!root.contains("settings") || !root["settings"].is_object() || !root.contains("levels") || !root["levels"].is_array()) return ParsingError;
+    std::ostringstream buffer;
+    try {
+        buffer << file.rdbuf();
+    }
+    catch (const std::ios_base::failure& e) {
+        ErrorsManager::addError("Main Levels Customizer: Failed to read from file 'Resources/levelCustomizer.json'. IOError: " + std::string(e.what()), ErrorsManager::Error);
+        file.close();
+        return false;
+    }
 
-		if (root["settings"].contains("unlockDemons") && root["settings"]["unlockDemons"].is_boolean() && root["settings"]["unlockDemons"].get<bool>()) unlockDemons = true;
-		if (root["settings"].contains("hideTheTower") && root["settings"]["hideTheTower"].is_boolean() && root["settings"]["hideTheTower"].get<bool>()) isHideTheTower = true;
+    std::string fileContent = buffer.str();
+    file.close();
 
-		if (root["levels"].size() < 1 || root["levels"].size() > 126) return LevelsCountError;
+    if (fileContent.empty()) {
+        ErrorsManager::addError("Main Levels Customizer: File 'Resources/levelCustomizer.json' is empty.", ErrorsManager::Error);
+        return false;
+    }
 
-		for (auto level : root["levels"]) {
-			if (!level.contains("name") || !level["name"].is_string()
-				|| !level.contains("difficulty") || !level["difficulty"].is_number_integer()
-				|| !level.contains("stars") || !level["stars"].is_number_integer()
-				|| !level.contains("song") || !level["song"].is_string()) return ParsingError;
+    try {
+        auto root = nlohmann::json::parse(fileContent);
 
-			auto newLevel = new MainLevelData();
-			newLevel->name = level["name"];
-			newLevel->difficulty = level["difficulty"].get<int>();
-			newLevel->stars = level["stars"].get<int>();
-			newLevel->song = level["song"];
+        if (!root.contains("settings") || !root["settings"].is_object() || !root.contains("levels") || !root["levels"].is_array()) {
+            ErrorsManager::addError("Main Levels Customizer: Missing required properties: 'settings' or 'levels'.", ErrorsManager::Error);
+            return false;
+        }
 
-			if (newLevel->name.size() > 100 || newLevel->name.size() == 0) return LevelNameLengthError;
-			if (newLevel->difficulty < 1 || newLevel->difficulty > 6) return LevelDifficultyError;
-			if (newLevel->stars <= 0 || newLevel->stars > 9999) return LevelStarsCountError;
+        if (root["settings"].contains("unlockDemons") && root["settings"]["unlockDemons"].is_boolean() &&
+            root["settings"]["unlockDemons"].get<bool>()) {
+            unlockDemons = true;
+        }
 
-			levelsData.push_back(newLevel);
-		}
-	}
-	catch (...) {
+        if (root["settings"].contains("hideTheTower") && root["settings"]["hideTheTower"].is_boolean() &&
+            root["settings"]["hideTheTower"].get<bool>()) {
+            isHideTheTower = true;
+        }
 
-		return ParsingError;
-	}
-	return OK;
-}
+        if (root["levels"].size() < 1 || root["levels"].size() > 126) {
+            ErrorsManager::addError("Main Levels Customizer: Invalid number of levels. The count must be between 1 and 126.", ErrorsManager::Error);
+            return false;
+        }
 
-void MainLevelsCustomizerManager::onMenuLayer(MenuLayer* layer) {
+        for (auto level : root["levels"]) {
+            if (!level.contains("name") || !level["name"].is_string() ||
+                !level.contains("difficulty") || !level["difficulty"].is_number_integer() ||
+                !level.contains("stars") || !level["stars"].is_number_integer() ||
+                !level.contains("song") || !level["song"].is_string()) {
+                ErrorsManager::addError("Main Levels Customizer: Missing or invalid properties in level data.", ErrorsManager::Error);
+                return false;
+            }
 
-	if (loadingStatus != OK) {
+            auto newLevel = new MainLevelData();
+            newLevel->name = level["name"];
+            newLevel->difficulty = level["difficulty"].get<int>();
+            newLevel->stars = level["stars"].get<int>();
+            newLevel->song = level["song"];
 
-		std::string errorText;
-		switch (loadingStatus) {
-		case FileNotFound:
-			errorText = "Can't find 'levelCustomizer.json' in ./Resources";
-			break;
-		case ParsingError:
-			errorText = "Can't parse 'levelCustomizer.json'";
-			break;
-		case LevelsCountError:
-			errorText = "Too many or too few levels in 'levelCustomizer.json'";
-			break;
-		case LevelNameLengthError:
-			errorText = "Levelname is too long or empty 'levelCustomizer.json'";
-			break;
-		case LevelDifficultyError:
-			errorText = "Difficulty should be between 1 and 6 in 'levelCustomizer.json'";
-			break;
-		case LevelStarsCountError:
-			errorText = "Too many stars for level in 'levelCustomizer.json'";
-			break;
-		}
+            if (newLevel->name.size() > 100 || newLevel->name.size() == 0) {
+                ErrorsManager::addError("Main Levels Customizer: Level name must be between 1 and 100 characters.", ErrorsManager::Error);
+                return false;
+            }
 
-		auto size = CCDirector::sharedDirector()->getWinSize();
+            if (newLevel->difficulty < 1 || newLevel->difficulty > 6) {
+                ErrorsManager::addError("Main Levels Customizer: Level difficulty must be between 1 and 6.", ErrorsManager::Error);
+                return false;
+            }
 
-		auto errorLabel = CCLabelBMFont::create(errorText.c_str(), "bigFont.fnt");
-		errorLabel->setColor({ 255, 0, 0 });
-		errorLabel->setScale(0.4);
-		errorLabel->setPosition({ size.width / 2, size.height - 10 });
-		layer->addChild(errorLabel);
-	}
+            if (newLevel->stars <= 0 || newLevel->stars > 9999) {
+                ErrorsManager::addError("Main Levels Customizer: Level stars count must be between 1 and 9999.", ErrorsManager::Error);
+                return false;
+            }
+
+            levelsData.push_back(newLevel);
+        }
+    }
+    catch (const nlohmann::json::parse_error& e) {
+        ErrorsManager::addError("Main Levels Customizer: JSON parsing error: " + std::string(e.what()), ErrorsManager::Error);
+        return false;
+    }
+    catch (const nlohmann::json::type_error& e) {
+        ErrorsManager::addError("Main Levels Customizer: JSON type error: " + std::string(e.what()), ErrorsManager::Error);
+        return false;
+    }
+    catch (const std::ios_base::failure& e) {
+        ErrorsManager::addError("Main Levels Customizer: I/O failure: " + std::string(e.what()), ErrorsManager::Error);
+        return false;
+    }
+    catch (const std::exception& e) {
+        ErrorsManager::addError("Main Levels Customizer: Unknown error: " + std::string(e.what()), ErrorsManager::Error);
+        return false;
+    }
+
+    return true;
 }
 
 void MainLevelsCustomizerManager::onLevelPage_customSetup(void* self, GJGameLevel* lvl) {
-	if (loadingStatus != OK || !isInMainLevels) return;
+	if (!isOk || !isInMainLevels) return;
 	
 	if (lvl->m_levelID.value() > -1) {
 		auto id = lvl->m_levelID.value();
@@ -120,7 +138,7 @@ void MainLevelsCustomizerManager::onLevelPage_customSetup(void* self, GJGameLeve
 }
 
 void MainLevelsCustomizerManager::onGetAudioFileName(std::string& self, int id) {
-	if (loadingStatus != OK || !isInMainLevels) return;
+	if (!isOk || !isInMainLevels) return;
 
 	if (id < 0 || id > levelsData.size() - 1) return;
 

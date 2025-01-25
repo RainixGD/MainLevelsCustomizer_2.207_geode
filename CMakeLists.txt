@@ -14,6 +14,8 @@ add_library(${PROJECT_NAME} SHARED
     src/main.cpp
     src/FastPatch.cpp
     src/MainLevelsCustomizerManager.cpp
+    src/ErrorsManager/ErrorsManager.cpp
+    src/ErrorsManager/ErrorsPopup.cpp
 )
 
 if (NOT DEFINED ENV{GEODE_SDK})

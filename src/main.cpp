@@ -6,10 +6,13 @@
 
 #include "./MainLevelsCustomizerManager.h"
 
+#include "./ErrorsManager/ErrorsManager.h"
+
 class $modify(MenuLayer) {
 	bool init() {
 		if (!MenuLayer::init()) return false;
-		MainLevelsCustomizerManager::getInstance()->onMenuLayer(this);
+		MainLevelsCustomizerManager::getInstance();// to get all the json errors
+		ErrorsManager::getInstance()->onMenuLayer(this);
 		return true;
 	}
 };

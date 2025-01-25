@@ -12,31 +12,21 @@ struct MainLevelData {
 
 class MainLevelsCustomizerManager {
 
-	enum DataLoadingResult {
-		OK,
-		FileNotFound,
-		ParsingError,
-		LevelsCountError,
-		LevelNameLengthError,
-		LevelStarsCountError,
-		LevelDifficultyError,
-	};
+	bool isOk = false;
 
 	std::vector<MainLevelData*> levelsData;
 	bool unlockDemons = false;
-	DataLoadingResult loadingStatus;
 	static MainLevelsCustomizerManager* instance;
 
 	bool isInMainLevels = false;
 	bool isHideTheTower = false;
 
 	void init();
-	DataLoadingResult loadData();
+	bool loadData();
 
 	MainLevelsCustomizerManager() {};
 public:
 
-	void onMenuLayer(MenuLayer* layer);
 	void onLevelPage_customSetup(void* self, GJGameLevel* lvl);
 	void onGetAudioFileName(std::string& self, int id);
 
